@@ -336,7 +336,7 @@ local function actualizarCardRapida(i, slot)
         card.rarLbl.Text = slot.rareza and capitalize(slot.rareza) or "Misterioso"
     end
     card.rarLbl.TextColor3 = slot.rareza and RARITY_COLORS[slot.rareza] or TEXT_DIM
-    card.precioLbl.Text = fmt(slot.precio or 0) .. " " .. (slot.moneda == "gemas" and "💎" or "🪙")
+    card.precioLbl.Text = fmt(slot.precio or 0) .. " " .. (slot.moneda == "gemas" and "💎" or "💰")
 
     -- Stock
     local stockDisp = slot.stockDisponible or slot.stock or 0

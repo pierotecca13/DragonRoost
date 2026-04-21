@@ -9,7 +9,10 @@
       "Bash(mv DataStore.server.lua DataStore.lua)",
       "Bash(mv EggService.server.lua EggService.lua)",
       "Bash(mv ShopService.server.lua ShopService.lua)",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(find /c/Dev/Proyectos/DragonRoost -type f -name *nest* -o -name *nido*)",
+      "Bash(find /c/Dev/Proyectos/DragonRoost/src -type f -name *.lua -o -name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js)",
+      "Bash(find /c/Dev/Proyectos/DragonRoost/src/client -type f \\\\\\(-name *.lua -o -name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))"
     ]
   }
 }

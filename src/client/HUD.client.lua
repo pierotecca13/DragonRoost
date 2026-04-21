@@ -355,7 +355,7 @@ local function crearFilaNido(nestIndex)
     -- Línea 1: ícono de dragón + número de nido + nombre + gps
     local infoLbl = Instance.new("TextLabel")
     infoLbl.Name                   = "InfoLbl"
-    infoLbl.Size                   = UDim2.new(1, 0, 0, 22)
+    infoLbl.Size                   = UDim2.new(1, -82, 0, 22)
     infoLbl.Position               = UDim2.new(0, 0, 0, 0)
     infoLbl.BackgroundTransparency = 1
     infoLbl.Font                   = Enum.Font.GothamBold
@@ -365,6 +365,20 @@ local function crearFilaNido(nestIndex)
     infoLbl.TextTruncate           = Enum.TextTruncate.AtEnd
     infoLbl.Text                   = ("🐉 Nido %d: —"):format(nestIndex)
     infoLbl.Parent                 = rowFrame
+
+    -- Línea 1 derecha: gps + multiplicador de boost (siempre visible)
+    local statsLbl = Instance.new("TextLabel")
+    statsLbl.Name                   = "StatsLbl"
+    statsLbl.Size                   = UDim2.new(0, 80, 0, 22)
+    statsLbl.AnchorPoint            = Vector2.new(1, 0)
+    statsLbl.Position               = UDim2.new(1, 0, 0, 0)
+    statsLbl.BackgroundTransparency = 1
+    statsLbl.Font                   = Enum.Font.GothamBold
+    statsLbl.TextSize               = 13
+    statsLbl.TextColor3             = TEXT_PRIMARY
+    statsLbl.TextXAlignment         = Enum.TextXAlignment.Right
+    statsLbl.Text                   = ""
+    statsLbl.Parent                 = rowFrame
 
     -- Línea 2: estado del huevo o advertencia de evaporación
     local eggLbl = Instance.new("TextLabel")
@@ -392,7 +406,7 @@ local function crearFilaNido(nestIndex)
     boostLbl.Text                   = ""
     boostLbl.Parent                 = rowFrame
 
-    local row = { frame = rowFrame, infoLbl = infoLbl, eggLbl = eggLbl, boostLbl = boostLbl }
+    local row = { frame = rowFrame, infoLbl = infoLbl, statsLbl = statsLbl, eggLbl = eggLbl, boostLbl = boostLbl }
     ui.nestRows[nestIndex] = row
     return row
 end
@@ -456,7 +470,7 @@ function HUD.Init()
     statsLayout.Parent     = statsPanel
 
     -- Línea 1 — Oro (fuente grande, GothamBold)
-    ui.goldLabel = crearLabel("🪙 0 oro",
+    ui.goldLabel = crearLabel("💰 0 oro",
         UDim2.new(1, 0, 0, 22),
         UDim2.new(0, 0, 0, 0),
         statsPanel, Enum.Font.GothamBold, TEXT_PRIMARY)
@@ -486,7 +500,7 @@ function HUD.Init()
 
     -- El NumberValue tween controla la animación del oro en pantalla
     goldDisplayValue.Changed:Connect(function(valor)
-        ui.goldLabel.Text = "🪙 " .. formatNumber(math.floor(valor)) .. " oro"
+        ui.goldLabel.Text = "💰 " .. formatNumber(math.floor(valor)) .. " oro"
     end)
 
     -- ── Panel Nidos (debajo de stats, scrollable) ─────────────────────────
@@ -1216,10 +1230,13 @@ function HUD.UpdateGoldPerSecond(stats)
                         end
                     end
                 end
-                -- Línea 1: nombre + gps + boost manual (sin ⚡ aquí para evitar truncado)
-                row.infoLbl.Text       = ("🐉 Nido %d: %s  %.1f/s%s")
-                    :format(nestIndex, nombre, gps, boostTxt)
+                -- Línea 1: nombre (izquierda, truncable) + gps+boost (derecha, siempre visible)
+                row.infoLbl.Text       = ("🐉 Nido %d: %s"):format(nestIndex, nombre)
                 row.infoLbl.TextColor3 = RARITY_COLORS[rareza] or TEXT_PRIMARY
+                if row.statsLbl then
+                    row.statsLbl.Text       = ("%.1f/s%s"):format(gps, boostTxt)
+                    row.statsLbl.TextColor3 = RARITY_COLORS[rareza] or TEXT_PRIMARY
+                end
                 -- Línea 2: elemento · rareza · ⚡ clima (si aplica a este elemento)
                 if not state.eggStatus[nestIndex] and not state.evaporating[nestIndex] then
                     local emoji      = ELEMENT_EMOJI[elemento] or "🐲"
@@ -1289,13 +1306,16 @@ function HUD.UpdateNestPanel(nestData)
             local colorRareza = RARITY_COLORS[rareza] or TEXT_PRIMARY
             local boostActivo = nido.boostSecondsLeft and nido.boostSecondsLeft > 0
 
-            -- Línea principal: nombre + gps
+            -- Línea principal: nombre (izquierda, truncable) + gps+boost (derecha, siempre visible)
             local boostTxt = boostActivo
                 and (" ✨×%.2g"):format(nido.boostMultiplier or 1)
                 or ""
-            row.infoLbl.Text       = ("🐉 Nido %d: %s  %.1f/s%s")
-                :format(nestIndex, nombre, gps, boostTxt)
+            row.infoLbl.Text       = ("🐉 Nido %d: %s"):format(nestIndex, nombre)
             row.infoLbl.TextColor3 = colorRareza
+            if row.statsLbl then
+                row.statsLbl.Text       = ("%.1f/s%s"):format(gps, boostTxt)
+                row.statsLbl.TextColor3 = colorRareza
+            end
 
             -- Línea de boost: nombre + countdown (se actualiza en tick loop)
             if boostActivo and nido.boostId then
