@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Bash(mv DragonService.server.lua DragonService.lua)",
+      "Bash(mv NestSystem.server.lua NestSystem.lua)",
+      "Bash(mv DataStore.server.lua DataStore.lua)",
+      "Bash(mv EggService.server.lua EggService.lua)",
+      "Bash(mv ShopService.server.lua ShopService.lua)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

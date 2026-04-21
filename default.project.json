@@ -1,0 +1,84 @@
+{
+  "name": "DragonRoost",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "Main": {
+        "$path": "src/server/Main.server.lua"
+      },
+      "DragonService": {
+        "$path": "src/server/DragonService.lua"
+      },
+      "NestSystem": {
+        "$path": "src/server/NestSystem.lua"
+      },
+      "DataStore": {
+        "$path": "src/server/DataStore.lua"
+      },
+      "EggService": {
+        "$path": "src/server/EggService.lua"
+      },
+      "WeatherSystem": {
+        "$path": "src/server/WeatherSystem.lua"
+      },
+      "ShopService": {
+        "$path": "src/server/ShopService.lua"
+      },
+      "BreedingSystem": {
+        "$path": "src/server/BreedingSystem.lua"
+      },
+      "TradeSystem": {
+        "$path": "src/server/TradeSystem.lua"
+      },
+      "FarmSystem": {
+        "$path": "src/server/FarmSystem.lua"
+      },
+      "ServerManager": {
+        "$path": "src/server/ServerManager.lua"
+      },
+      "VisitSystem": {
+        "$path": "src/server/VisitSystem.lua"
+      },
+      "BoostSystem": {
+        "$path": "src/server/BoostSystem.lua"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "HUD": {
+          "$path": "src/client/HUD.client.lua"
+        },
+        "ShopGUI": {
+          "$path": "src/client/ShopGUI.client.lua"
+        },
+        "CatalogueGUI": {
+          "$path": "src/client/CatalogueGUI.client.lua"
+        },
+        "EggOpenGUI": {
+          "$path": "src/client/EggOpenGUI.client.lua"
+        },
+        "TradeGUI": {
+          "$path": "src/client/TradeGUI.client.lua"
+        },
+        "MapGUI": {
+          "$path": "src/client/MapGUI.client.lua"
+        },
+        "InventoryGUI": {
+          "$path": "src/client/InventoryGUI.client.lua"
+        }
+      }
+    },
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "DragonData": {
+        "$path": "src/shared/DragonData.lua"
+      },
+      "Constants": {
+        "$path": "src/shared/Constants.lua"
+      }
+    }
+  }
+}
