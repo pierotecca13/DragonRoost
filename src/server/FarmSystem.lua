@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DragonService = require(script.Parent.DragonService)
 local NestSystem    = require(script.Parent.NestSystem)
 local DragonData    = require(ReplicatedStorage:WaitForChild("DragonData"))
+local craterTemplate = ReplicatedStorage:WaitForChild("Crater")
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local function obtenerOCrearRemote(tipo, nombre)
@@ -215,20 +216,38 @@ local function buildFarm(player, plotIndex)
         local padBase  = center + offset      -- superficie de la plataforma
         local unlocked = i <= maxSlots
 
-        -- Pedestal del nido (cubo de 2 studs de alto para que sea prominente)
+        -- Part invisible en la superficie: ancla para ProximityPrompt y BillboardGui
         local pad = mkPart(model, "NestPad_" .. i,
             Vector3.new(10, 2, 10),
-            CFrame.new(padBase + Vector3.new(0, 1, 0)),  -- top en padBase.Y + 2
+            CFrame.new(padBase + Vector3.new(0, 1, 0)),
             unlocked and COLOR_EMPTY or COLOR_LOCKED,
             Enum.Material.SmoothPlastic)
+        pad.Transparency = 1
+        pad.CanCollide   = false
 
-        -- Nido (cuenco marrón sobre el pedestal)
-        local bowl = mkPart(model, "Bowl_" .. i,
-            Vector3.new(6, 1.5, 6),
-            CFrame.new(padBase + Vector3.new(0, 2.75, 0)),
-            unlocked and BrickColor.new("Reddish brown") or COLOR_LOCKED,
-            Enum.Material.Wood)
-        bowl.CanCollide = false
+        -- Clonar el modelo Crater y escalarlo al footprint del nido (10×10 studs)
+        local craterClone = craterTemplate:Clone()
+        local _, rawSize  = craterTemplate:GetBoundingBox()
+        local scaleFactor = 10 / math.max(rawSize.X, rawSize.Z)
+        craterClone:ScaleTo(scaleFactor)
+
+        -- Auto-asignar PrimaryPart si el modelo no lo tiene configurado
+        if not craterClone.PrimaryPart then
+            local base = craterClone:FindFirstChildWhichIsA("BasePart", true)
+            if base then craterClone.PrimaryPart = base end
+        end
+
+        -- Posicionar el modelo visual sobre la plataforma
+        local _, scaledSize = craterClone:GetBoundingBox()
+        if craterClone.PrimaryPart then
+            craterClone:PivotTo(CFrame.new(padBase + Vector3.new(0, scaledSize.Y / 2, 0)))
+        else
+            craterClone:MoveTo(padBase + Vector3.new(0, scaledSize.Y / 2, 0))
+        end
+        craterClone.Name   = "NestCrater_" .. i
+        craterClone.Parent = model
+
+        local bowl = pad   -- bowl apunta al ancla (para el flash de color en recolección)
 
         -- BillboardGui encima del nido
         local bb = Instance.new("BillboardGui")
@@ -287,8 +306,9 @@ local function buildFarm(player, plotIndex)
             prompt.ObjectText            = "Nido " .. i
             prompt.ActionText            = "Recolectar"
             prompt.KeyboardKeyCode       = Enum.KeyCode.E
-            prompt.MaxActivationDistance = 12
-            prompt.HoldDuration          = 0
+            prompt.MaxActivationDistance  = 12
+            prompt.HoldDuration           = 0
+            prompt.RequiresLineOfSight    = false
             prompt.Enabled               = false
             prompt.Parent                = pad
         end
