@@ -585,7 +585,25 @@ local function renderHuevos()
         local capHuevo = huevo
         selBtn.Activated:Connect(function()
             state.huevoSelected = { idx = capIdx, entry = capHuevo }
-            mostrarAccionesHuevo(capIdx, capHuevo)
+            -- Abrir la ventana de probabilidades de EggOpenGUI mediante BindableEvent
+            local detallEvt = playerGui:FindFirstChild("AbrirDetallHuevo")
+            if detallEvt then
+                local parentDragon = DragonData.GetDragonById(capHuevo.dragonId)
+                if not parentDragon then
+                    mostrarAccionesHuevo(capIdx, capHuevo)
+                    return
+                end
+                detallEvt:Fire({
+                    parentDragon      = parentDragon,
+                    eggIndex          = capIdx,
+                    incubationSeconds = parentDragon.incubationSeconds,
+                    garantiaRareza    = capHuevo.guaranteed,
+                    sellValue         = math.floor(parentDragon.goldPerSecond * 100 * 0.30),
+                    nestIndex         = nil,   -- no hay nido; oculta el botón Acelerar
+                })
+            else
+                mostrarAccionesHuevo(capIdx, capHuevo)
+            end
         end)
     end
 end
@@ -662,7 +680,7 @@ function mostrarAccionesHuevo(eggIdx, huevo)
             vendBtn.Active = true
             return
         end
-        local ok, res = pcall(function() return rf:InvokeServer(eggIdx) end)
+        local ok, res = pcall(function() return rf:InvokeServer(eggIdx, true) end)
         if ok and type(res) == "table" and res.ok then
             mostrarMensaje(("Vendiste el huevo por %d oro."):format(res.goldGained or 0), "success")
             state.inventarioHuevos[eggIdx] = nil
@@ -1002,7 +1020,14 @@ end
 
 function InventoryGUI.Abrir()
     if state.visible then return end
-    state.visible       = true
+    state.visible        = true
+    state.tabActual      = "dragones"
+    -- Resetear colores de pestañas al abrir
+    for id, btn in pairs(ui.tabBtns) do
+        btn.BackgroundColor3 = id == "dragones"
+            and Color3.fromRGB(90, 55, 160)
+            or  Color3.fromRGB(30, 20, 55)
+    end
     ui.screenGui.Enabled = true
 
     ui.ventana.Size = UDim2.new(0, 500, 0, 400)
@@ -1060,6 +1085,36 @@ task.spawn(function()
     if nestEv then
         nestEv.OnClientEvent:Connect(function()
             if state.visible then
+                cargarDatos()
+            end
+        end)
+    end
+end)
+
+-- Actualizar lista de huevos cuando EggOpenGUI vende uno del inventario
+task.spawn(function()
+    local evtHuevo = playerGui:WaitForChild("HuevoInventarioVendido", 30)
+    if evtHuevo then
+        evtHuevo.Event:Connect(function(eggIdx)
+            if state.inventarioHuevos then
+                state.inventarioHuevos[eggIdx] = nil
+            end
+            if state.visible then
+                renderHuevos()
+                actualizarHeader()
+            end
+        end)
+    end
+end)
+
+-- Refrescar huevos cuando se recolecta un huevo nuevo al inventario
+task.spawn(function()
+    local Rem = ReplicatedStorage:WaitForChild("Remotes", 30)
+    if not Rem then return end
+    local eggReadyEv = Rem:WaitForChild("EggReady", 15)
+    if eggReadyEv then
+        eggReadyEv.OnClientEvent:Connect(function(data)
+            if data and data.collected then
                 cargarDatos()
             end
         end)

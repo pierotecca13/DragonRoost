@@ -138,9 +138,10 @@ local state = {
     weatherEnding   = false,
     prestigeReqs    = nil,  -- última data de requisitos recibida
     estadoServidor  = {},   -- última tabla de EstadoServidorActualizado
-    huevoListo      = false,  -- badge notif huevo
-    tiendaRotada    = false,  -- badge notif tienda
-    inventarioItems = false,  -- badge notif inventario
+    huevoListo            = false,  -- badge notif huevo
+    tiendaRotada          = false,  -- badge notif tienda
+    inventarioItems       = false,  -- badge notif inventario
+    proximaRotacionRapida = 0,      -- timestamp Unix de próxima rotación de tienda rápida
 }
 
 -- Referencias a elementos UI (se populan en HUD.Init)
@@ -166,6 +167,8 @@ local ui = {
     badgeHuevo         = nil,  -- punto rojo sobre botón Huevos
     badgeTienda        = nil,  -- punto rojo sobre botón Tienda
     badgeInventario    = nil,  -- punto rojo sobre botón Inventario
+    tiendaIconLbl      = nil,  -- emoji 🏪 del botón Tienda
+    tiendaCountdown    = nil,  -- label de countdown sobre ícono Tienda
     -- Panel de ranking del servidor (esquina superior derecha)
     rankingPanel       = nil,
     rankingRows        = {},
@@ -333,7 +336,7 @@ local function crearFilaNido(nestIndex)
 
     local rowFrame = Instance.new("Frame")
     rowFrame.Name                   = "NestRow_" .. nestIndex
-    rowFrame.Size                   = UDim2.new(1, -8, 0, 82)
+    rowFrame.Size                   = UDim2.new(1, -8, 0, 90)
     rowFrame.BackgroundColor3       = NEST_COLOR_NORMAL
     rowFrame.BackgroundTransparency = 0.3
     rowFrame.BorderSizePixel        = 0
@@ -380,24 +383,44 @@ local function crearFilaNido(nestIndex)
     statsLbl.Text                   = ""
     statsLbl.Parent                 = rowFrame
 
-    -- Línea 2: estado del huevo o advertencia de evaporación
-    local eggLbl = Instance.new("TextLabel")
+    -- Línea 2: rareza + elemento (siempre visible)
+    local rarityLbl = Instance.new("TextLabel")
+    rarityLbl.Name                   = "RarityLbl"
+    rarityLbl.Size                   = UDim2.new(1, 0, 0, 18)
+    rarityLbl.Position               = UDim2.new(0, 8, 0, 24)
+    rarityLbl.BackgroundTransparency = 1
+    rarityLbl.Font                   = Enum.Font.Gotham
+    rarityLbl.TextSize               = 12
+    rarityLbl.TextColor3             = TEXT_DIM
+    rarityLbl.TextXAlignment         = Enum.TextXAlignment.Left
+    rarityLbl.Text                   = ""
+    rarityLbl.Parent                 = rowFrame
+
+    -- Línea 3: estado del huevo o advertencia de evaporación (TextButton para poder tocarlo)
+    local eggLbl = Instance.new("TextButton")
     eggLbl.Name                    = "EggLbl"
     eggLbl.Size                    = UDim2.new(1, 0, 0, 18)
-    eggLbl.Position                = UDim2.new(0, 8, 0, 24)
+    eggLbl.Position                = UDim2.new(0, 8, 0, 42)
     eggLbl.BackgroundTransparency  = 1
+    eggLbl.AutoButtonColor         = false
     eggLbl.Font                    = Enum.Font.Gotham
     eggLbl.TextSize                = 12
     eggLbl.TextColor3              = TEXT_DIM
     eggLbl.TextXAlignment          = Enum.TextXAlignment.Left
     eggLbl.Text                    = ""
     eggLbl.Parent                  = rowFrame
+    eggLbl.MouseButton1Click:Connect(function()
+        local eg = state.eggStatus[nestIndex]
+        if eg and eg.isReady and _G.DragonRoost_ShowEggReady then
+            _G.DragonRoost_ShowEggReady(nestIndex, eg.dragonId)
+        end
+    end)
 
-    -- Línea 3: indicador de boost activo con countdown
+    -- Línea 4: indicador de boost activo con countdown
     local boostLbl = Instance.new("TextLabel")
     boostLbl.Name                   = "BoostLbl"
     boostLbl.Size                   = UDim2.new(1, 0, 0, 16)
-    boostLbl.Position               = UDim2.new(0, 8, 0, 44)
+    boostLbl.Position               = UDim2.new(0, 8, 0, 62)
     boostLbl.BackgroundTransparency = 1
     boostLbl.Font                   = Enum.Font.GothamBold
     boostLbl.TextSize               = 11
@@ -406,7 +429,7 @@ local function crearFilaNido(nestIndex)
     boostLbl.Text                   = ""
     boostLbl.Parent                 = rowFrame
 
-    local row = { frame = rowFrame, infoLbl = infoLbl, statsLbl = statsLbl, eggLbl = eggLbl, boostLbl = boostLbl }
+    local row = { frame = rowFrame, infoLbl = infoLbl, statsLbl = statsLbl, rarityLbl = rarityLbl, eggLbl = eggLbl, boostLbl = boostLbl }
     ui.nestRows[nestIndex] = row
     return row
 end
@@ -843,6 +866,22 @@ function HUD.Init()
             ui.badgeHuevo      = badge
         elseif info.badge == "tienda" then
             ui.badgeTienda     = badge
+            ui.tiendaIconLbl   = iconLbl
+            -- Label de countdown (oculto hasta que queden ≤60 s)
+            local cdLbl = Instance.new("TextLabel")
+            cdLbl.Name                   = "CountdownLbl"
+            cdLbl.Size                   = UDim2.new(1, 0, 0, 38)
+            cdLbl.Position               = UDim2.new(0, 0, 0, 6)
+            cdLbl.BackgroundTransparency = 1
+            cdLbl.Font                   = Enum.Font.GothamBold
+            cdLbl.TextSize               = 22
+            cdLbl.TextColor3             = Color3.fromRGB(255, 200, 50)
+            cdLbl.TextXAlignment         = Enum.TextXAlignment.Center
+            cdLbl.Text                   = ""
+            cdLbl.Visible                = false
+            cdLbl.ZIndex                 = 6
+            cdLbl.Parent                 = btnFr
+            ui.tiendaCountdown = cdLbl
         elseif info.badge == "inventario" then
             ui.badgeInventario = badge
         end
@@ -855,7 +894,12 @@ function HUD.Init()
         clickBtn.ZIndex                 = 5
         clickBtn.Parent                 = btnFr
 
-        local eventoCapturado = info.evento
+        local eventoCapturado  = info.evento
+        local PROXIMAMENTE = {
+            AbrirCatalogo    = true,
+            AbrirBreeding    = true,
+            AbrirIntercambio = true,
+        }
         clickBtn.Activated:Connect(function()
             -- Animar el botón (feedback táctil)
             TweenService:Create(btnFr, TWEEN_FAST,
@@ -864,6 +908,11 @@ function HUD.Init()
                 TweenService:Create(btnFr, TWEEN_FAST,
                     { BackgroundColor3 = Color3.fromRGB(25, 18, 40) }):Play()
             end)
+            -- Funciones aún no disponibles → mostrar aviso y salir
+            if PROXIMAMENTE[eventoCapturado] then
+                HUD.ShowNotification("🚧 " .. info.texto .. " — ¡Próximamente!", "warning")
+                return
+            end
             -- Limpiar badge si aplica
             if info.badge == "huevo" and ui.badgeHuevo then
                 ui.badgeHuevo.Visible   = false
@@ -878,6 +927,14 @@ function HUD.Init()
             NavEvent:Fire(eventoCapturado)
         end)
     end
+
+    -- ── BindableEvent público para que otros LocalScripts disparen notifs ──
+    local hudNotify = Instance.new("BindableEvent")
+    hudNotify.Name   = "HUDNotify"
+    hudNotify.Parent = sg
+    hudNotify.Event:Connect(function(msg, notifType)
+        HUD.ShowNotification(msg, notifType)
+    end)
 
     -- ── Conexión de RemoteEvents del servidor ─────────────────────────────
 
@@ -1020,8 +1077,29 @@ function HUD.Init()
     end)
 
     -- Tienda Rápida rotó
-    conectar("TiendaRapidaActualizada", function(_payload)
+    conectar("TiendaRapidaActualizada", function(payload)
         HUD.ShowNotification("⚡ ¡La Tienda Rápida se ha renovado!", "event")
+        if payload and payload.proximaRotacion then
+            state.proximaRotacionRapida = payload.proximaRotacion
+        end
+    end)
+
+    -- Countdown en el ícono de Tienda cuando quedan ≤60 segundos
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if state.proximaRotacionRapida > 0 and ui.tiendaCountdown then
+                local secsLeft = math.max(0, state.proximaRotacionRapida - os.time())
+                if secsLeft <= 60 and secsLeft > 0 then
+                    ui.tiendaCountdown.Text    = tostring(secsLeft)
+                    ui.tiendaCountdown.Visible = true
+                    if ui.tiendaIconLbl then ui.tiendaIconLbl.Visible = false end
+                else
+                    ui.tiendaCountdown.Visible = false
+                    if ui.tiendaIconLbl then ui.tiendaIconLbl.Visible = true end
+                end
+            end
+        end
     end)
 
     -- Tienda Especial rotó
@@ -1237,15 +1315,15 @@ function HUD.UpdateGoldPerSecond(stats)
                     row.statsLbl.Text       = ("%.1f/s%s"):format(gps, boostTxt)
                     row.statsLbl.TextColor3 = RARITY_COLORS[rareza] or TEXT_PRIMARY
                 end
-                -- Línea 2: elemento · rareza · ⚡ clima (si aplica a este elemento)
-                if not state.eggStatus[nestIndex] and not state.evaporating[nestIndex] then
-                    local emoji      = ELEMENT_EMOJI[elemento] or "🐲"
-                    local climaTxt   = weatherActivo
+                -- Línea 2: elemento · rareza · ⚡ clima (siempre visible)
+                if row.rarityLbl then
+                    local emoji    = ELEMENT_EMOJI[elemento] or "🐲"
+                    local climaTxt = weatherActivo
                         and ("  ⚡×%.1f"):format(weatherMult)
                         or ""
-                    row.eggLbl.Text       = ("  %s %s  ·  %s%s"):format(
+                    row.rarityLbl.Text       = ("  %s %s  ·  %s%s"):format(
                         emoji, capitalize(elemento), capitalize(rareza), climaTxt)
-                    row.eggLbl.TextColor3 = weatherActivo
+                    row.rarityLbl.TextColor3 = weatherActivo
                         and Color3.fromRGB(255, 210, 60)
                         or (RARITY_COLORS[rareza] or TEXT_PRIMARY)
                 end
@@ -1333,6 +1411,28 @@ function HUD.UpdateNestPanel(nestData)
                 row.boostLbl.Text = ""
             end
 
+            -- Línea 2: rareza + elemento (siempre visible)
+            do
+                local emoji    = ELEMENT_EMOJI[elemento] or "🐲"
+                local weatherActivo = false
+                local weatherMult   = 1.0
+                if state.weather and state.weather.affectedElements then
+                    for _, affElem in ipairs(state.weather.affectedElements) do
+                        if affElem == elemento then
+                            weatherActivo = true
+                            weatherMult   = state.weather.multiplier or 1.0
+                            break
+                        end
+                    end
+                end
+                local climaTxt = weatherActivo and ("  ⚡×%.1f"):format(weatherMult) or ""
+                row.rarityLbl.Text       = ("  %s %s  ·  %s%s"):format(
+                    emoji, capitalize(elemento), capitalize(rareza), climaTxt)
+                row.rarityLbl.TextColor3 = weatherActivo
+                    and Color3.fromRGB(255, 210, 60)
+                    or colorRareza
+            end
+
             -- Estado del huevo (usa state.eggStatus si hay data local más fresca)
             local egg = state.eggStatus[nestIndex]
             if state.evaporating[nestIndex] then
@@ -1349,13 +1449,11 @@ function HUD.UpdateNestPanel(nestData)
                     local secsLeft = math.max(0, egg.readyAt - os.time())
                     row.eggLbl.Text       = ("  🥚 %s restante"):format(formatTime(secsLeft))
                     row.eggLbl.TextColor3 = TEXT_DIM
+                else
+                    row.eggLbl.Text = ""
                 end
             else
-                -- Sin huevo: mostrar elemento + rareza en línea 2
-                local emoji = ELEMENT_EMOJI[elemento] or "🐲"
-                row.eggLbl.Text       = ("  %s %s  ·  %s"):format(
-                    emoji, capitalize(elemento), capitalize(rareza))
-                row.eggLbl.TextColor3 = colorRareza
+                row.eggLbl.Text = ""
             end
 
             colorearFila(nestIndex, boostActivo, state.evaporating[nestIndex] ~= nil)

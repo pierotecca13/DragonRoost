@@ -51,19 +51,25 @@ local RARITY_COLORS = {
 }
 
 local ELEMENT_COLORS = {
-    fire      = Color3.fromRGB(255,  90,  20),
-    water     = Color3.fromRGB( 30, 130, 255),
-    ice       = Color3.fromRGB(180, 230, 255),
-    thunder   = Color3.fromRGB(255, 240,  50),
-    nature    = Color3.fromRGB( 50, 200,  80),
-    shadow    = Color3.fromRGB(130,  50, 200),
+    fire = Color3.fromRGB(255, 90, 20),   fuego      = Color3.fromRGB(255,  90,  20),
+    water = Color3.fromRGB(30, 130, 255), agua       = Color3.fromRGB( 30, 130, 255),
+    ice = Color3.fromRGB(180, 230, 255),  hielo      = Color3.fromRGB(180, 230, 255),
+    thunder = Color3.fromRGB(255, 240, 50), trueno   = Color3.fromRGB(255, 240,  50),
+    nature = Color3.fromRGB(50, 200, 80), naturaleza = Color3.fromRGB( 50, 200,  80),
+    shadow = Color3.fromRGB(130, 50, 200), sombra    = Color3.fromRGB(130,  50, 200),
     celestial = Color3.fromRGB(255, 220, 100),
-    void      = Color3.fromRGB( 80,  20, 160),
+    void = Color3.fromRGB(80, 20, 160),   vacio      = Color3.fromRGB( 80,  20, 160),
 }
 
 local ELEMENT_EMOJI = {
-    fire = "🔥", water = "💧", ice = "❄️", thunder = "⚡",
-    nature = "🌿", shadow = "🌑", celestial = "✨", void = "🌀",
+    fire = "🔥", fuego = "🔥",
+    water = "💧", agua = "💧",
+    ice = "❄️", hielo = "❄️",
+    thunder = "⚡", trueno = "⚡",
+    nature = "🌿", naturaleza = "🌿",
+    shadow = "🌑", sombra = "🌑",
+    celestial = "✨",
+    void = "🌀", vacio = "🌀",
 }
 
 local RARITY_ORDER = { common=1, uncommon=2, rare=3, epic=4, legendary=5, mythic=6 }
@@ -119,16 +125,18 @@ local MODAL_W = 440
 --------------------------------------------------------------------------------
 
 local state = {
-    huevoActual   = nil,   -- datos del huevo en pantalla (nestIndex, parentDragon, etc.)
-    incubando     = false, -- true mientras hay un countdown de incubación activo
-    incubaGen     = 0,     -- generación del countdown de incubación (para cancelarlo)
-    pulsoGen      = 0,     -- generación del loop de pulso del huevo (pantalla 1)
-    tembloreGen   = 0,     -- generación del loop de temblor durante incubación
-    queueGen      = 0,     -- generación del tick de la cola
-    dragonReveal  = nil,   -- dragón que se está mostrando en el reveal
-    revealActivo  = false, -- true mientras el reveal está en pantalla
+    huevoActual    = nil,   -- datos del huevo en pantalla (nestIndex, parentDragon, etc.)
+    incubando      = false, -- true mientras hay un countdown de incubación activo
+    incubaGen      = 0,     -- generación del countdown de incubación (para cancelarlo)
+    pulsoGen       = 0,     -- generación del loop de pulso del huevo (pantalla 1)
+    tembloreGen    = 0,     -- generación del loop de temblor durante incubación
+    queueGen       = 0,     -- generación del tick de la cola
+    dragonReveal   = nil,   -- dragón que se está mostrando en el reveal
+    revealActivo   = false, -- true mientras el reveal está en pantalla
     -- Cola de incubaciones activas: [nestIndex] = { parentId, readyAt }
-    cola          = {},
+    cola           = {},
+    -- [nestIndex] = true cuando el jugador cerró el popup sin recoger
+    popupDismissed = {},
 }
 
 -- Referencias a frames creados en crearUI()
@@ -169,10 +177,10 @@ local function rarityStars(rarity)
     return string.rep("★", n) .. string.rep("☆", 6 - n)
 end
 
--- Calcula el valor de venta del huevo (4 min de GPS del padre)
+-- Calcula el valor de venta del huevo (igual que servidor: gps × 100 × 0.30)
 local function calcSellValue(parentDragon)
     if not parentDragon then return 0 end
-    return math.max(10, math.floor(parentDragon.goldPerSecond * 240))
+    return math.floor(parentDragon.goldPerSecond * 100 * 0.30)
 end
 
 -- Calcula el coste de acelerar en gemas (1 gema por cada 60 seg restantes)
@@ -379,6 +387,7 @@ local function crearUI()
     notifC.CornerRadius = UDim.new(0,8)
     notifC.Parent       = notifBg
     ui.notifLabel = notif
+    notif.Visible = false  -- oculto hasta que showNotif lo active
 end
 
 -- Limpia el contenido del modal para la siguiente pantalla
@@ -395,15 +404,20 @@ end
 -- Abre el ScreenGui y muestra el overlay + modal
 local function mostrarModal(w, h)
     ui.revealFrame.Visible        = false
+    -- Resetear tamaño/posición ANTES de mostrar para evitar destello en posición anterior
+    ui.modal.Size     = UDim2.new(0,1,0,1)
+    ui.modal.Position = UDim2.new(0.5,0,0.5,0)
+    -- Ocultar notif flotante de sesiones anteriores (Visible=false ignora tweens activos)
+    if ui.notifLabel then
+        ui.notifLabel.Visible = false
+    end
+    ui.bgOverlay.BackgroundTransparency = 1
     ui.bgOverlay.Visible          = true
     ui.modal.Visible              = true
     ui.screenGui.Enabled          = true
-    ui.bgOverlay.BackgroundTransparency = 1
     TweenService:Create(ui.bgOverlay, TW_MED, { BackgroundTransparency = 0.55 }):Play()
     redimModal(w, h)
     -- Entrada del modal con escala
-    ui.modal.Size     = UDim2.new(0,1,0,1)
-    ui.modal.Position = UDim2.new(0.5,0,0.5,0)
     TweenService:Create(ui.modal, TW_BOUNCE, {
         Size     = UDim2.new(0, w, 0, h),
         Position = UDim2.new(0.5, -w/2, 0.5, -h/2),
@@ -427,8 +441,19 @@ local function cerrarModal(desactivar)
 end
 
 -- Muestra la notificación flotante y la oculta automáticamente
+-- Dispara una notificación en el sistema de notificaciones del HUD (esquina superior derecha).
+-- notifType: "success" | "warning" | "error" | "event"
+local function hudNotif(msg, notifType)
+    local hudGui = playerGui:FindFirstChild("DragonRoostHUD")
+    local ev = hudGui and hudGui:FindFirstChild("HUDNotify")
+    if ev then
+        ev:Fire(msg, notifType or "success")
+    end
+end
+
 local function showNotif(msg, color, duracion)
     local lbl = ui.notifLabel
+    lbl.Visible    = true
     lbl.Text       = "  " .. msg .. "  "
     lbl.TextColor3 = color or Color3.fromRGB(100,220,100)
     local bg = lbl:FindFirstChildWhichIsA("Frame")
@@ -492,6 +517,10 @@ function EggOpenGUI.ShowEggReady(nestIndex, parentDragonId)
         UDim2.new(0,32,0,32), UDim2.new(1,-40,0,10),
         Color3.fromRGB(60,20,20), Color3.fromRGB(255,180,180), 15)
     xBtn.MouseButton1Click:Connect(function()
+        -- Marcar como descartado para que no vuelva a aparecer solo
+        if state.huevoActual then
+            state.popupDismissed[state.huevoActual.nestIndex] = true
+        end
         cerrarModal(true)
     end)
 
@@ -564,17 +593,15 @@ function EggOpenGUI.ShowEggReady(nestIndex, parentDragonId)
         end)
 
         if ok and result and result.ok then
-            -- Guardar datos adicionales del servidor y pasar a pantalla 2
-            state.huevoActual.eggIndex          = result.eggIndex
-            state.huevoActual.incubationSeconds = result.incubationSeconds
-            state.huevoActual.garantiaRareza    = result.garantiaRareza
-            state.huevoActual.sellValue         = result.sellValue or sellValue
+            -- Huevo guardado en inventario → cerrar popup y notificar en el HUD
             playSound(SOUND_IDS.egg_ready, 0.5)
-            EggOpenGUI.ShowProbabilities(state.huevoActual)
+            cerrarModal(true)
+            hudNotif("¡Huevo guardado en el inventario! 🥚", "success")
         else
             collectBtn.Active = true
             collectBtn.Text   = "🥚  RECOLECTAR"
-            showNotif("Error al recolectar: " .. tostring(result), Color3.fromRGB(200,60,60))
+            local errMsg = (type(result) == "table" and result.error) or "Inventario lleno"
+            hudNotif(errMsg, "error")
         end
     end)
 
@@ -753,47 +780,50 @@ function EggOpenGUI.ShowProbabilities(eggData)
         end
     end)
 
-    -- Acelerar (requiere gemas)
+    -- Acelerar (requiere gemas) — solo si hay nido activo (no aplica desde inventario)
     local gemCost = calcSpeedCost(incubSeconds)
-    local accelBtn = mkB(inner, "AccelBtn",
-        "⚡ Acelerar  —  " .. gemCost .. " 💎",
-        UDim2.new(1,-20,0,36), UDim2.new(0,10,0, btnY + 50),
-        Color3.fromRGB(30,40,90), Color3.fromRGB(150,190,255), 14)
-    accelBtn.MouseButton1Click:Connect(function()
-        -- Mostrar confirmación inline
-        accelBtn.Text   = "¿Confirmar " .. gemCost .. " 💎?"
-        accelBtn.Active = false
-        task.delay(0.10, function()
-            local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-            local ok, result = pcall(function()
-                return Remotes:WaitForChild("RequestSpeedUpIncubation")
-                    :InvokeServer(eggData.nestIndex)
+    if eggData.nestIndex then
+        local accelBtn = mkB(inner, "AccelBtn",
+            "⚡ Acelerar  —  " .. gemCost .. " 💎",
+            UDim2.new(1,-20,0,36), UDim2.new(0,10,0, btnY + 50),
+            Color3.fromRGB(30,40,90), Color3.fromRGB(150,190,255), 14)
+        accelBtn.MouseButton1Click:Connect(function()
+            accelBtn.Text   = "¿Confirmar " .. gemCost .. " 💎?"
+            accelBtn.Active = false
+            task.delay(0.10, function()
+                local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+                local ok, result = pcall(function()
+                    return Remotes:WaitForChild("RequestSpeedUpIncubation")
+                        :InvokeServer(eggData.nestIndex)
+                end)
+                if ok and result and result.ok then
+                    showNotif("¡Incubación acelerada!", Color3.fromRGB(100,160,255))
+                    EggOpenGUI.StartIncubation(eggData)
+                else
+                    accelBtn.Active = true
+                    accelBtn.Text   = "⚡ Acelerar  —  " .. gemCost .. " 💎"
+                    showNotif("Gemas insuficientes", Color3.fromRGB(200,60,60))
+                end
             end)
-            if ok and result and result.ok then
-                showNotif("¡Incubación acelerada!", Color3.fromRGB(100,160,255))
-                EggOpenGUI.StartIncubation(eggData)
-            else
-                accelBtn.Active = true
-                accelBtn.Text   = "⚡ Acelerar  —  " .. gemCost .. " 💎"
-                showNotif("Gemas insuficientes", Color3.fromRGB(200,60,60))
-            end
         end)
-    end)
+    end
 
-    -- Vender
+    -- Vender (posición dinámica: junto a Incubar si no hay Acelerar)
+    local sellOffsetY = eggData.nestIndex and (btnY + 92) or (btnY + 50)
     local sellBtn = mkB(inner, "SellBtn",
         "Vender: " .. fmtNum(eggData.sellValue) .. " 🪙",
-        UDim2.new(1,-20,0,32), UDim2.new(0,10,0, btnY + 92),
+        UDim2.new(1,-20,0,32), UDim2.new(0,10,0, sellOffsetY),
         Color3.fromRGB(40,28,10), Color3.fromRGB(200,160,60), 13)
     sellBtn.MouseButton1Click:Connect(function()
         sellBtn.Active = false
         local Remotes  = ReplicatedStorage:WaitForChild("Remotes")
         local ok, result = pcall(function()
-            return Remotes:WaitForChild("RequestSellEgg"):InvokeServer(eggData.eggIndex)
+            return Remotes:WaitForChild("RequestSellEgg"):InvokeServer(eggData.eggIndex, true)
         end)
         if ok and result and result.ok then
-            showNotif("Vendido: +" .. fmtNum(result.goldGained or eggData.sellValue) .. " 🪙",
-                Color3.fromRGB(255,200,60))
+            hudNotif("Vendido: +" .. fmtNum(result.goldGained or eggData.sellValue) .. " 🪙", "success")
+            local invEvt = playerGui:FindFirstChild("HuevoInventarioVendido")
+            if invEvt then invEvt:Fire(eggData.eggIndex) end
             cerrarModal(true)
         else
             sellBtn.Active = true
@@ -829,7 +859,7 @@ function EggOpenGUI.StartIncubation(eggData)
     mkL(headerBg, "Title", "⏳ Incubando...",
         UDim2.new(1,-50,1,0), UDim2.new(0,14,0,0),
         18, BORDER_GOLD, Enum.Font.GothamBold)
-    mkL(headerBg, "Sub", parentDragon.name .. "  •  Nido " .. eggData.nestIndex,
+    mkL(headerBg, "Sub", parentDragon.name .. (eggData.nestIndex and ("  •  Nido " .. eggData.nestIndex) or "  •  Inventario"),
         UDim2.new(1,-14,0,16), UDim2.new(0,7,0,30),
         12, TEXT_DIM, Enum.Font.Gotham)
 
@@ -1757,15 +1787,43 @@ end
 local function Init()
     crearUI()
 
+    -- BindableEvent para que InventoryGUI abra la ventana de detalle de huevo
+    local detallEvt = Instance.new("BindableEvent")
+    detallEvt.Name   = "AbrirDetallHuevo"
+    detallEvt.Parent = playerGui
+
+    -- BindableEvent para notificar a InventoryGUI que un huevo del inventario fue vendido
+    local invVendidoEvt = Instance.new("BindableEvent")
+    invVendidoEvt.Name   = "HuevoInventarioVendido"
+    invVendidoEvt.Parent = playerGui
+    detallEvt.Event:Connect(function(eggData)
+        if state.revealActivo then return end
+        EggOpenGUI.ShowProbabilities(eggData)
+    end)
+
     local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
     -- EggReady → mostrar pantalla 1 de recolección
     Remotes:WaitForChild("EggReady").OnClientEvent:Connect(function(data)
         if not (data and data.nestIndex and data.dragonId) then return end
+        -- Limpiar dismissal cuando el huevo fue recolectado
+        if data.collected then
+            state.popupDismissed[data.nestIndex] = nil
+            return
+        end
         -- No interrumpir un reveal activo
         if state.revealActivo then return end
+        -- No reabrir si el jugador ya cerró el popup deliberadamente
+        if state.popupDismissed[data.nestIndex] then return end
         EggOpenGUI.ShowEggReady(data.nestIndex, data.dragonId)
     end)
+
+    -- Exponer para que HUD pueda reabrir el popup aunque estuviera cerrado
+    _G.DragonRoost_ShowEggReady = function(nestIndex, dragonId)
+        if state.revealActivo then return end
+        state.popupDismissed[nestIndex] = nil
+        EggOpenGUI.ShowEggReady(nestIndex, dragonId)
+    end
 
     -- EggStarted → registrar en la cola de incubación local
     Remotes:WaitForChild("EggStarted").OnClientEvent:Connect(function(data)

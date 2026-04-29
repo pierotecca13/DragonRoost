@@ -14,7 +14,8 @@
       "Bash(find /c/Dev/Proyectos/DragonRoost/src -type f -name *.lua -o -name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js)",
       "Bash(find /c/Dev/Proyectos/DragonRoost/src/client -type f \\\\\\(-name *.lua -o -name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\))",
       "Bash(grep -r \"Model\\\\|Asset\\\\|rbxasset\\\\|rbxassetid\\\\|Crater\" /c/Dev/Proyectos/DragonRoost --include=*.lua)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find /c/Dev/Proyectos/DragonRoost -type f -name \"*.lua\" -exec grep -l \"Instance.new\" {})"
     ]
   }
 }

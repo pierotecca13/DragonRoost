@@ -37,6 +37,16 @@ local Constants  = require(ReplicatedStorage:WaitForChild("Constants"))
 -- Servicio de producción
 local DragonService = require(ServerScriptService:WaitForChild("DragonService"))
 
+-- EggService se carga de forma lazy para evitar dependencia circular
+-- (EggService ya hace require(NestSystem) al nivel superior).
+local _EggService
+local function getEggService()
+    if not _EggService then
+        _EggService = require(ServerScriptService:WaitForChild("EggService"))
+    end
+    return _EggService
+end
+
 local NESTS    = Constants.NESTS
 local PRESTIGE = Constants.PRESTIGE
 local LEVELS   = Constants.LEVELS
@@ -191,6 +201,7 @@ function NestSystem.InitPlayer(player, savedData)
     for nestIndex, nido in pairs(state.nests) do
         if nido.dragonId then
             DragonService.StartProduction(player, nestIndex, nido.dragonId)
+            getEggService().StartEggTimer(player, nestIndex, nido.dragonId)
         end
     end
 end
@@ -205,9 +216,8 @@ function NestSystem.AddGold(player, amount)
     local state = playerState[player.UserId]
     if not state then return end
     state.gold = state.gold + amount
-    GoldUpdatedEvent:FireClient(player, {
-        currentGold = state.gold,
-    })
+    -- GoldUpdatedEvent NO se dispara aquí; DataStore.AddGold ya lo hace
+    -- con el valor definitivo para evitar dos eventos con valores distintos.
 end
 
 --------------------------------------------------------------------------------
@@ -285,6 +295,7 @@ function NestSystem.PlaceDragon(player, nestIndex, dragonId)
     nido.lockedUntil     = nil
 
     DragonService.StartProduction(player, nestIndex, dragonId)
+    getEggService().StartEggTimer(player, nestIndex, dragonId)
 
     NestUpdatedEvent:FireClient(player, NestSystem.GetNestData(player))
     if NestSystem.OnNestChanged then NestSystem.OnNestChanged(player, nestIndex) end
@@ -321,8 +332,9 @@ function NestSystem.RemoveDragon(player, nestIndex)
 
     local dragonId = nido.dragonId
 
-    -- Detener producción en DragonService
+    -- Detener producción en DragonService y cancelar timer de huevo
     DragonService.StopProduction(player, nestIndex)
+    getEggService().CancelEggTimer(player, nestIndex)
 
     -- Devolver el dragón al inventario
     state.inventory[dragonId] = (state.inventory[dragonId] or 0) + 1
@@ -699,6 +711,7 @@ function NestSystem.ReemplazarDragon(player, nestIndex, nuevoDragonId)
     -- Quitar el dragón actual (vuelve al inventario automáticamente)
     -- Esto recarga NestUpdated internamente; lo volveremos a disparar al final.
     DragonService.StopProduction(player, nestIndex)
+    getEggService().CancelEggTimer(player, nestIndex)
     local dragonAnterior   = nido.dragonId
     state.inventory[dragonAnterior] = (state.inventory[dragonAnterior] or 0) + 1
 
@@ -720,6 +733,7 @@ function NestSystem.ReemplazarDragon(player, nestIndex, nuevoDragonId)
     nido.boostMultiplier = 1
 
     DragonService.StartProduction(player, nestIndex, nuevoDragonId)
+    getEggService().StartEggTimer(player, nestIndex, nuevoDragonId)
     NestUpdatedEvent:FireClient(player, NestSystem.GetNestData(player))
     if NestSystem.OnNestChanged then NestSystem.OnNestChanged(player, nestIndex) end
     return true, "¡Dragón reemplazado!"

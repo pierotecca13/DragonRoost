@@ -74,14 +74,22 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "fire_common",
-        name              = "Drake Brasa",
+        name              = "Ember Drake",
         element           = "fuego",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.fuego,
+        -- Colores del modelo
+        bodyColor         = Color3.fromRGB(200,  40,  10),  -- rojo intenso
+        secondaryColor    = Color3.fromRGB(255, 140,   0),  -- naranja dorado (vientre/alas)
+        eyeColor          = Color3.fromRGB(255, 140,   0),  -- naranja brillante
+        glowColor         = Color3.fromRGB(255, 100,   0),  -- resplandor naranja suave
+        -- Partículas
+        particleColor     = Color3.fromRGB(255, 160,  20),  -- chispas naranja-amarillo
+        particleColor2    = Color3.fromRGB(255, 220,  50),  -- chispas amarillas secundarias
+        tailFlame         = true,                           -- llama pequeña en punta de cola
         description       = "La punta de su cola nunca deja de brillar con un tenue resplandor anaranjado.",
         soloCria          = false,
         soloEvento        = false,
@@ -162,14 +170,20 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "water_common",
-        name              = "Serpiente de Arroyo",
+        name              = "Tide Hatchling",
         element           = "agua",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.agua,
+        bodyColor         = Color3.fromRGB( 30, 100, 200),  -- azul medio
+        secondaryColor    = Color3.fromRGB(100, 210, 240),  -- cyan claro
+        eyeColor          = Color3.fromRGB( 80, 160, 255),  -- azul brillante
+        glowColor         = Color3.fromRGB( 60, 150, 255),  -- reflejo húmedo suave
+        particleColor     = Color3.fromRGB(120, 210, 255),  -- gotitas de agua
+        particleColor2    = Color3.fromRGB(200, 240, 255),  -- highlights acuosos
+        fallingParticles  = true,                           -- gotitas cayendo alrededor
         description       = "Una serpiente apacible que juega en riachuelos cristalinos poco profundos.",
         soloCria          = false,
         soloEvento        = false,
@@ -250,14 +264,20 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "ice_common",
-        name              = "Cría de Escarcha",
+        name              = "Frost Drake",
         element           = "hielo",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.hielo,
+        bodyColor         = Color3.fromRGB(180, 220, 255),  -- azul muy claro
+        secondaryColor    = Color3.fromRGB(240, 245, 255),  -- blanco
+        eyeColor          = Color3.fromRGB(150, 230, 255),  -- cyan helado
+        glowColor         = Color3.fromRGB(200, 235, 255),  -- destello frío brillante
+        particleColor     = Color3.fromRGB(220, 240, 255),  -- copos de nieve
+        particleColor2    = Color3.fromRGB(180, 215, 255),  -- cristalitos de hielo
+        floatingParticles = true,                           -- copos flotando y girando
         description       = "Deja diminutos y perfectos cristales de hielo en cada lugar que pisa.",
         soloCria          = false,
         soloEvento        = false,
@@ -338,14 +358,20 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "thunder_common",
-        name              = "Drake Chispa",
+        name              = "Spark Hatchling",
         element           = "trueno",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.trueno,
+        bodyColor         = Color3.fromRGB(255, 210,   0),  -- amarillo dorado
+        secondaryColor    = Color3.fromRGB(255, 255, 200),  -- blanco eléctrico
+        eyeColor          = Color3.fromRGB(255, 255, 255),  -- blanco brillante
+        glowColor         = Color3.fromRGB(255, 230,  50),  -- destello eléctrico
+        particleColor     = Color3.fromRGB(180, 220, 255),  -- chispas azul/blanco
+        particleColor2    = Color3.fromRGB(255, 255, 255),  -- chispas blancas
+        electricFlash     = true,                           -- destello eléctrico intermitente rápido
         description       = "Crepita con chispas inofensivas cada vez que se emociona.",
         soloCria          = false,
         soloEvento        = false,
@@ -426,14 +452,20 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "nature_common",
-        name              = "Drake Hoja",
+        name              = "Leaf Hatchling",
         element           = "naturaleza",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.naturaleza,
+        bodyColor         = Color3.fromRGB( 60, 160,  60),  -- verde medio
+        secondaryColor    = Color3.fromRGB( 30, 100,  30),  -- verde oscuro
+        eyeColor          = Color3.fromRGB(120, 220,  50),  -- verde lima brillante
+        glowColor         = Color3.fromRGB( 80, 180,  50),  -- resplandor cálido natural
+        particleColor     = Color3.fromRGB( 80, 180,  60),  -- hojitas verdes
+        particleColor2    = Color3.fromRGB(130, 210,  80),  -- pétalos verdes
+        fallingParticles  = true,                           -- pétalos cayendo suavemente
         description       = "Pequeñas plantas brotan durante la noche en cada lugar donde ha caído su sombra.",
         soloCria          = false,
         soloEvento        = false,
@@ -514,14 +546,20 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "shadow_common",
-        name              = "Sprite Crepúsculo",
+        name              = "Shadow Hatchling",
         element           = "sombra",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.sombra,
+        bodyColor         = Color3.fromRGB( 60,  20,  90),  -- morado oscuro
+        secondaryColor    = Color3.fromRGB( 20,  10,  30),  -- negro
+        eyeColor          = Color3.fromRGB(180,   0, 255),  -- morado neón brillante
+        glowColor         = Color3.fromRGB(180,   0, 255),  -- solo para el destello de ojos
+        particleColor     = Color3.fromRGB( 80,  40, 120),  -- humo oscuro muy suave
+        particleColor2    = Color3.fromRGB(120,  30, 180),  -- partículas moradas flotando
+        noGlow            = true,                           -- cuerpo mate oscuro; solo ojos iluminados
         description       = "Un espectro travieso que se oculta en las sombras más largas del atardecer.",
         soloCria          = false,
         soloEvento        = false,
@@ -602,14 +640,19 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "celestial_common",
-        name              = "Drake Estelar",
+        name              = "Star Hatchling",
         element           = "celestial",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.celestial,
+        bodyColor         = Color3.fromRGB(255, 210, 100),  -- dorado claro
+        secondaryColor    = Color3.fromRGB(255, 245, 200),  -- crema/blanco cálido
+        eyeColor          = Color3.fromRGB(255, 215,   0),  -- dorado brillante
+        glowColor         = Color3.fromRGB(255, 220, 120),  -- resplandor dorado suave
+        particleColor     = Color3.fromRGB(255, 230, 100),  -- estrellitas doradas
+        particleColor2    = Color3.fromRGB(255, 255, 200),  -- destellos suaves
         description       = "Una tenue luz estelar se aferra a sus escamas doradas a toda hora.",
         soloCria          = false,
         soloEvento        = false,
@@ -690,14 +733,19 @@ DragonData.Dragons = {
     ----------------------------------------------------------------------------
     {
         id                = "void_common",
-        name              = "Sprite Hueco",
+        name              = "Void Hatchling",
         element           = "vacio",
         rarity            = "comun",
         goldPerSecond     = OPS.comun,
         eggTimerSeconds   = HUEVO.comun,
         incubationSeconds = incub("comun"),
         scale             = ESCALA.comun,
-        particleColor     = CE.vacio,
+        bodyColor         = Color3.fromRGB( 30,  30,  40),  -- gris oscuro casi negro
+        secondaryColor    = Color3.fromRGB(140,   0, 255),  -- morado neón
+        eyeColor          = Color3.fromRGB(180,   0, 255),  -- morado neón muy brillante
+        glowColor         = Color3.fromRGB(140,   0, 255),  -- brillo neón en bordes
+        particleColor     = Color3.fromRGB(150,   0, 255),  -- partículas moradas glitch
+        particleColor2    = Color3.fromRGB(200,  50, 255),  -- morado más brillante
         description       = "Un drake tranquilo, de ojos vacíos, que se desplaza en silencio absoluto.",
         soloCria          = false,
         soloEvento        = false,

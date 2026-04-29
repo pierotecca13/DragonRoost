@@ -17,8 +17,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DragonService = require(script.Parent.DragonService)
 local NestSystem    = require(script.Parent.NestSystem)
+local EggService    = require(script.Parent.EggService)
+local DataStore     = require(script.Parent.DataStore)
 local DragonData    = require(ReplicatedStorage:WaitForChild("DragonData"))
 local craterTemplate = ReplicatedStorage:WaitForChild("Crater")
+
+-- Nombre del modelo Dragon Pet en ReplicatedStorage
+-- Cambiar al nombre exacto que aparece en Studio
+local DRAGON_PET_MODEL_NAME = "Dragon Pet"
+local petTemplate = ReplicatedStorage:FindFirstChild(DRAGON_PET_MODEL_NAME)
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local function obtenerOCrearRemote(tipo, nombre)
@@ -75,6 +82,29 @@ local COLOR_EMPTY    = BrickColor.new("Medium stone grey")
 local COLOR_OCCUPIED = BrickColor.new("Sand green")
 local COLOR_LOCKED   = BrickColor.new("Dark grey")
 
+-- ── Apariencia del Dragon Pet ──────────────────────────────────────────────
+-- Base por elemento: { bodyColor, accentColor, particleColor, glowColor }
+local ELEMENT_BASE = {
+    fuego      = { Color3.fromRGB(200, 60, 10),  Color3.fromRGB(255, 130, 0),  Color3.fromRGB(255, 80, 0),   Color3.fromRGB(255, 50, 0)   },
+    agua       = { Color3.fromRGB(20,  90, 190), Color3.fromRGB(60,  170, 255),Color3.fromRGB(60,  150, 255),Color3.fromRGB(40,  120, 255) },
+    hielo      = { Color3.fromRGB(160, 210, 255),Color3.fromRGB(220, 240, 255),Color3.fromRGB(190, 230, 255),Color3.fromRGB(180, 220, 255) },
+    trueno     = { Color3.fromRGB(160, 120, 10), Color3.fromRGB(255, 235, 30), Color3.fromRGB(255, 230, 0),  Color3.fromRGB(255, 210, 0)  },
+    naturaleza = { Color3.fromRGB(25,  120, 35), Color3.fromRGB(70,  190, 50), Color3.fromRGB(50,  190, 30), Color3.fromRGB(30,  160, 20)  },
+    sombra     = { Color3.fromRGB(40,  15,  70), Color3.fromRGB(120, 50,  190),Color3.fromRGB(110, 30,  170),Color3.fromRGB(90,  15,  150) },
+    celestial  = { Color3.fromRGB(190, 170, 255),Color3.fromRGB(255, 245, 255),Color3.fromRGB(210, 190, 255),Color3.fromRGB(190, 170, 255) },
+    vacio      = { Color3.fromRGB(35,  30,  40), Color3.fromRGB(160, 0,   255),Color3.fromRGB(140, 20,  255),Color3.fromRGB(120, 0,   220) },
+}
+
+-- Modificadores por rareza: rate, brightness, range, accentRate (2º emisor)
+local RARITY_MOD = {
+    comun      = { rate = 12, brightness = 1.6, range = 8,  accentRate = 0  },
+    poco_comun = { rate = 14, brightness = 1.4, range = 7,  accentRate = 0  },
+    raro       = { rate = 22, brightness = 2.2, range = 9,  accentRate = 8  },
+    epico      = { rate = 35, brightness = 3.5, range = 11, accentRate = 16 },
+    legendario = { rate = 55, brightness = 5.0, range = 14, accentRate = 28 },
+    mitico     = { rate = 80, brightness = 7.0, range = 18, accentRate = 45 },
+}
+
 --------------------------------------------------------------------------------
 -- Estado interno
 --------------------------------------------------------------------------------
@@ -104,6 +134,260 @@ local function getNestOffset(i)
     local ox  = (col - (NEST_COLS - 1) / 2) * NEST_SPACING_X
     local oz  = (row - 0.5) * NEST_SPACING_Z + 2
     return Vector3.new(ox, 0, oz)
+end
+
+--------------------------------------------------------------------------------
+-- Aplica colores, partículas y luz al clon de Dragon Pet
+-- dragonData (opcional): entrada de DragonData.Dragons para overrides por dragón
+--------------------------------------------------------------------------------
+local function applyDragonAppearance(clone, element, rarity, dragonData)
+    local base = ELEMENT_BASE[element]
+    local mod  = RARITY_MOD[rarity]
+    if not base or not mod then return end
+
+    -- Overrides por dragón individual (DragonData) o fallback al base del elemento
+    local bodyColor     = (dragonData and dragonData.bodyColor)      or base[1]
+    local accentColor   = (dragonData and dragonData.secondaryColor) or base[2]
+    local particleColor = (dragonData and dragonData.particleColor)  or base[3]
+    local glowColor     = (dragonData and dragonData.glowColor)      or base[4]
+
+    -- Material.Neon: ignora la textura baked del modelo y usa Part.Color directamente.
+    -- Esto da colores exactos y un brillo propio en el cuerpo sin PointLight extra.
+    -- Sombra y Vacío usan SmoothPlastic para el look mate oscuro que requieren.
+    local isMate = (element == "sombra" or element == "vacio")
+    local bodyMat = isMate and Enum.Material.SmoothPlastic or Enum.Material.Neon
+
+    local anchor = clone
+    if clone:IsA("BasePart") then
+        clone.Color    = bodyColor
+        clone.Material = bodyMat
+        for _, desc in ipairs(clone:GetDescendants()) do
+            if desc:IsA("SurfaceAppearance") then
+                desc:Destroy()
+            elseif desc:IsA("SpecialMesh") then
+                desc.VertexColor = Vector3.new(1, 1, 1)
+                desc.TextureId   = ""   -- sin textura → Material.Neon muestra color puro
+            elseif desc:IsA("BasePart") then
+                desc.Color    = accentColor
+                desc.Material = bodyMat
+            end
+        end
+    end
+    if not anchor then return end
+
+    -- Emisor principal
+    local pe = Instance.new("ParticleEmitter")
+    pe.Color         = ColorSequence.new({ ColorSequenceKeypoint.new(0, particleColor), ColorSequenceKeypoint.new(1, glowColor) })
+    pe.Size          = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.55), NumberSequenceKeypoint.new(1, 0) })
+    pe.Transparency  = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+    pe.LightEmission = 1
+    pe.Rate          = mod.rate
+    pe.Lifetime      = NumberRange.new(0.8, 1.5)
+    pe.Speed         = NumberRange.new(2, 5)
+    pe.SpreadAngle   = Vector2.new(50, 50)
+    pe.Parent        = anchor
+
+    -- Segundo emisor de acento (rareza raro+)
+    if mod.accentRate > 0 then
+        local pe2 = Instance.new("ParticleEmitter")
+        pe2.Color         = ColorSequence.new({ ColorSequenceKeypoint.new(0, accentColor), ColorSequenceKeypoint.new(1, bodyColor) })
+        pe2.Size          = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+        pe2.Transparency  = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.1), NumberSequenceKeypoint.new(1, 1) })
+        pe2.LightEmission = 1
+        pe2.Rate          = mod.accentRate
+        pe2.Lifetime      = NumberRange.new(0.8, 1.5)
+        pe2.Speed         = NumberRange.new(0.5, 1.5)
+        pe2.SpreadAngle   = Vector2.new(60, 60)
+        pe2.Parent        = anchor
+    end
+
+    -- Emisor de destellos secundarios (particleColor2 en DragonData)
+    -- Vida corta + tamaño grande → efecto "pop" de estrella / chispa brillante
+    if dragonData and dragonData.particleColor2 then
+        local peS = Instance.new("ParticleEmitter")
+        peS.Color         = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   dragonData.particleColor2),  -- color secundario puro al nacer
+            ColorSequenceKeypoint.new(0.4, dragonData.particleColor2),  -- se mantiene brillante
+            ColorSequenceKeypoint.new(1,   particleColor),              -- funde al color base al morir
+        })
+        peS.Size          = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.0),
+            NumberSequenceKeypoint.new(0.2, 0.90),  -- aparece rápido y grande (visible en malla 5×)
+            NumberSequenceKeypoint.new(1,   0.0),   -- encoge hasta desaparecer
+        })
+        peS.Transparency  = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.0),
+            NumberSequenceKeypoint.new(0.5, 0.0),
+            NumberSequenceKeypoint.new(1,   1.0),
+        })
+        peS.LightEmission = 1
+        peS.Rate          = mod.rate * 2.5          -- frecuente para que los destellos sean continuos
+        peS.Lifetime      = NumberRange.new(0.10, 0.28)  -- vida muy corta = flash rápido
+        peS.Speed         = NumberRange.new(1, 4)
+        peS.SpreadAngle   = Vector2.new(180, 180)
+        peS.RotSpeed      = NumberRange.new(-360, 360)
+        peS.Rotation      = NumberRange.new(0, 360)
+        peS.Parent        = anchor
+    end
+
+    -- Llama en la punta de la cola (tailFlame en DragonData)
+    -- La malla visual tiene Scale(5,5,5) y Offset(1,0,3) respecto al Handle físico.
+    -- El Attachment se desplaza ~5 studs atrás (−Z) del centro del Handle para
+    -- quedar aproximadamente en la cola. Ajustar tailOffsetZ si la malla lo requiere.
+    if dragonData and dragonData.tailFlame then
+        local tailAtt = Instance.new("Attachment")
+        tailAtt.CFrame = CFrame.new(1, 0.5, -5)   -- estimado: detrás del cuerpo, ligeramente arriba
+        tailAtt.Parent = anchor
+
+        local flame = Instance.new("ParticleEmitter")
+        flame.Color         = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 240,  80)),  -- amarillo brillante
+            ColorSequenceKeypoint.new(0.3, Color3.fromRGB(255, 140,   0)),  -- naranja
+            ColorSequenceKeypoint.new(1,   Color3.fromRGB(200,  30,   0)),  -- rojo al morir
+        })
+        flame.Size          = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.15),
+            NumberSequenceKeypoint.new(0.3, 0.55),   -- crece rápido → llama visible sobre la malla
+            NumberSequenceKeypoint.new(1,   0.0),
+        })
+        flame.Transparency  = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.0),
+            NumberSequenceKeypoint.new(0.6, 0.1),
+            NumberSequenceKeypoint.new(1,   1.0),
+        })
+        flame.LightEmission  = 1
+        flame.Rate           = 40
+        flame.Lifetime       = NumberRange.new(0.35, 0.70)
+        flame.Speed          = NumberRange.new(2.5, 5.0)
+        flame.SpreadAngle    = Vector2.new(15, 15)
+        flame.RotSpeed       = NumberRange.new(-180, 180)
+        flame.Rotation       = NumberRange.new(0, 360)
+        flame.Parent         = tailAtt
+    end
+
+    -- Partículas cayendo (gotitas de agua, pétalos, etc.)
+    -- Usan un Attachment rotado 180° para que el eje +Y apunte hacia abajo
+    if dragonData and dragonData.fallingParticles then
+        local att = Instance.new("Attachment")
+        att.CFrame = CFrame.Angles(math.pi, 0, 0)   -- eje Y apunta hacia abajo
+        att.Parent = anchor
+        local peD = Instance.new("ParticleEmitter")
+        peD.Color         = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   particleColor),
+            ColorSequenceKeypoint.new(0.5, accentColor),
+            ColorSequenceKeypoint.new(1,   particleColor),
+        })
+        peD.Size          = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.55),
+            NumberSequenceKeypoint.new(0.6, 0.40),
+            NumberSequenceKeypoint.new(1,   0.0),
+        })
+        peD.Transparency  = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.0),
+            NumberSequenceKeypoint.new(0.6, 0.2),
+            NumberSequenceKeypoint.new(1,   1.0),
+        })
+        peD.LightEmission = 0.7
+        peD.Rate          = mod.rate * 2.2           -- denso para que las gotas sean visibles
+        peD.Lifetime      = NumberRange.new(1.0, 2.0) -- vida larga: caen más studs antes de morir
+        peD.Speed         = NumberRange.new(3.0, 6.0) -- velocidad alta para caída obvia
+        peD.SpreadAngle   = Vector2.new(35, 35)       -- cono algo ancho: algunas gotas salen a los lados
+        peD.Parent        = att
+    end
+
+    -- Partículas flotantes (copos de nieve, cristalitos girando)
+    if dragonData and dragonData.floatingParticles then
+        local peFL = Instance.new("ParticleEmitter")
+        peFL.Color         = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   particleColor),
+            ColorSequenceKeypoint.new(0.5, accentColor),
+            ColorSequenceKeypoint.new(1,   glowColor),
+        })
+        peFL.Size          = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.50),
+            NumberSequenceKeypoint.new(0.5, 0.70),
+            NumberSequenceKeypoint.new(1,   0),
+        })
+        peFL.Transparency  = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.05), NumberSequenceKeypoint.new(1, 1) })
+        peFL.LightEmission = 0.9
+        peFL.Rate          = mod.rate * 2
+        peFL.Lifetime      = NumberRange.new(1.5, 3.0)
+        peFL.Speed         = NumberRange.new(3, 7)       -- velocidad mayor para salir del mesh
+        peFL.SpreadAngle   = Vector2.new(180, 180)
+        peFL.RotSpeed      = NumberRange.new(-80, 80)
+        peFL.Rotation      = NumberRange.new(0, 360)
+        peFL.Parent        = anchor
+    end
+
+    -- Luz puntual
+    -- Si noGlow=true: solo destello de ojos muy tenue; si no, luz normal por rareza
+    local light
+    if dragonData and dragonData.noGlow then
+        light            = Instance.new("PointLight")
+        light.Color      = (dragonData.eyeColor) or glowColor
+        light.Brightness = 0.35
+        light.Range      = 3
+        light.Parent     = anchor
+    else
+        light            = Instance.new("PointLight")
+        light.Color      = glowColor
+        light.Brightness = mod.brightness
+        light.Range      = mod.range
+        light.Parent     = anchor
+    end
+
+    -- Destello eléctrico intermitente (trueno)
+    if dragonData and dragonData.electricFlash then
+        local baseBr = mod.brightness
+        task.spawn(function()
+            while anchor and anchor.Parent do
+                light.Brightness = baseBr * 3.5
+                task.wait(0.06 + math.random() * 0.04)
+                light.Brightness = baseBr * 0.2
+                task.wait(0.15 + math.random() * 0.55)
+            end
+        end)
+    end
+
+    -- Efectos especiales por elemento
+    if element == "vacio" then
+        -- Semitransparencia+Neon solo para dragones de vacío sin bodyColor propio
+        -- (el Void Hatchling común usa cuerpo mate oscuro, sin Neon)
+        if not (dragonData and dragonData.bodyColor) then
+            if anchor:IsA("BasePart") then
+                anchor.Transparency = 0.30
+                anchor.Material     = Enum.Material.Neon
+            end
+        end
+        -- Colores del glitch desde DragonData si existen, si no los valores por defecto
+        local glitchC1 = (dragonData and dragonData.particleColor)  or Color3.fromRGB(200, 0, 255)
+        local glitchC2 = (dragonData and dragonData.particleColor2) or Color3.fromRGB(80,  0, 150)
+        -- Partículas de distorsión digital: rápidas, erráticas, corta vida
+        local glitch = Instance.new("ParticleEmitter")
+        glitch.Color         = ColorSequence.new({
+            ColorSequenceKeypoint.new(0,   glitchC1),
+            ColorSequenceKeypoint.new(0.5, glitchC2),
+            ColorSequenceKeypoint.new(1,   Color3.fromRGB(30,  0,  60)),
+        })
+        glitch.Size          = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.50),
+            NumberSequenceKeypoint.new(0.5, 0.80),
+            NumberSequenceKeypoint.new(1,   0),
+        })
+        glitch.Transparency  = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        glitch.LightEmission = 1
+        glitch.Rate          = mod.rate * 2   -- más denso que el emisor base
+        glitch.Lifetime      = NumberRange.new(0.05, 0.20)  -- vida muy corta = efecto glitch
+        glitch.Speed         = NumberRange.new(4, 10)
+        glitch.SpreadAngle   = Vector2.new(180, 180)        -- en todas direcciones
+        glitch.RotSpeed      = NumberRange.new(-360, 360)
+        glitch.Rotation      = NumberRange.new(0, 360)
+        glitch.Parent        = anchor
+    end
+
 end
 
 --------------------------------------------------------------------------------
@@ -313,7 +597,7 @@ local function buildFarm(player, plotIndex)
             prompt.Parent                = pad
         end
 
-        nests[i] = { pad = pad, bowl = bowl, nameLbl = nameLbl, rarLbl = rarLbl, goldLbl = goldLbl, boostLbl = boostLbl }
+        nests[i] = { pad = pad, bowl = bowl, bb = bb, nameLbl = nameLbl, rarLbl = rarLbl, goldLbl = goldLbl, boostLbl = boostLbl, dragonClone = nil }
     end
 
     return { model = model, nests = nests, center = center }
@@ -389,8 +673,60 @@ function FarmSystem.UpdateNestPad(player, nestIndex)
             prompt.ActionText = string.format("Recolectar  💰 %d", math.floor(pending))
             prompt.Enabled    = pending >= 1
         end
+
+        -- Dragon Pet: crear o recrear el clon si el dragón cambió o no existe
+        if entry.dragonClone and entry.currentDragonId ~= nido.dragonId then
+            entry.dragonClone:Destroy()
+            entry.dragonClone    = nil
+            entry.currentDragonId = nil
+            if entry.bb then entry.bb.StudsOffset = Vector3.new(0, 7, 0) end
+        end
+        if petTemplate and not entry.dragonClone then
+            local clone = petTemplate:Clone()
+            -- Extraer el Handle del Accessory para evitar el auto-attach de Roblox
+            local handle = clone:FindFirstChild("Handle") or clone:FindFirstChildWhichIsA("BasePart", true)
+            if handle then
+                local mesh = handle:FindFirstChildWhichIsA("SpecialMesh")
+                if mesh then
+                    mesh.Scale  = Vector3.new(5, 5, 5)
+                    mesh.Offset = Vector3.new(1, 0, 3)
+                end
+
+                -- Anclar y posicionar ANTES de parentar
+                local padTop = pad.Position.Y + pad.Size.Y / 2
+                handle.Anchored   = true
+                handle.CanCollide = false
+                handle.CFrame = CFrame.new(pad.Position.X, padTop + 3, pad.Position.Z)
+
+                handle.Parent = pad.Parent
+                clone:Destroy()
+
+                local ok, err = pcall(applyDragonAppearance, handle, element, rarity, dragon)
+                if not ok then
+                    warn("[FarmSystem] applyDragonAppearance error: " .. tostring(err))
+                end
+                entry.dragonClone    = handle
+                entry.currentDragonId = nido.dragonId
+
+                if entry.bb then
+                    entry.bb.StudsOffset = Vector3.new(0, 10, 0)
+                end
+            end
+        end
     else
         -- Nido vacío o bloqueado
+        -- Destruir dragon pet si existía
+        if entry.dragonClone then
+            entry.dragonClone:Destroy()
+            entry.dragonClone = nil
+            if entry.bb then entry.bb.StudsOffset = Vector3.new(0, 7, 0) end
+        end
+        -- Destruir huevo físico si existía
+        if entry.eggModel then
+            entry.eggModel:Destroy()
+            entry.eggModel = nil
+        end
+
         local maxSlots = nestData.slots or 1
         if nestIndex <= maxSlots then
             nameLbl.Text       = "— Vacío —"
@@ -427,7 +763,7 @@ local function connectPrompts(player, farm)
             local oro = DragonService.CollectGold(player, nestIndex)
             -- GoldCollectedEvent ya se dispara dentro de DragonService.CollectGold
             if oro > 0 then
-                NestSystem.AddGold(player, oro)
+                DataStore.AddGold(player, oro)
                 -- Parpadeo dorado del bowl
                 local bowl = entry.bowl
                 local prev = bowl.BrickColor
@@ -473,7 +809,7 @@ local function startAutoCollectLoop()
                     for i = 1, MAX_NESTS do
                         local oro = DragonService.CollectGold(player, i)
                         if oro > 0 then
-                            NestSystem.AddGold(player, oro)
+                            DataStore.AddGold(player, oro)
                             -- Parpadeo dorado del bowl para feedback visual
                             local entry = farm.nests[i]
                             if entry and entry.bowl then
@@ -586,6 +922,63 @@ function FarmSystem.ReleasePlot(player)
     end
 end
 
+-- Colores de huevo por rareza
+local EGG_RARITY_COLORS = {
+    comun       = Color3.fromRGB(200, 200, 200),
+    poco_comun  = Color3.fromRGB(100, 220, 100),
+    raro        = Color3.fromRGB(80,  130, 255),
+    epico       = Color3.fromRGB(160, 80,  255),
+    legendario  = Color3.fromRGB(255, 180, 50),
+    mitico      = Color3.fromRGB(255, 80,  80),
+}
+
+-- Crea un Part de huevo físico encima del nido cuando el huevo está listo
+function FarmSystem.ShowEggOnNest(player, nestIndex)
+    local farm = farmModels[player.UserId]
+    if not farm then return end
+    local entry = farm.nests[nestIndex]
+    if not entry then return end
+    if entry.eggModel then return end  -- ya existe, no duplicar
+
+    local pad = farm.model:FindFirstChild("NestPad_" .. nestIndex)
+    if not pad then return end
+
+    local nestData = NestSystem.GetNestData(player)
+    local dragonId = nestData and nestData.nests[nestIndex] and nestData.nests[nestIndex].dragonId
+    local dragon   = dragonId and DragonData.GetDragonById(dragonId)
+    local color    = EGG_RARITY_COLORS[dragon and dragon.rarity or "comun"] or Color3.fromRGB(200, 200, 200)
+
+    local egg = Instance.new("Part")
+    egg.Name       = "EggModel"
+    egg.Size       = Vector3.new(1.2, 1.5, 1.2)
+    egg.Anchored   = true
+    egg.CanCollide = false
+    egg.Color      = color
+    egg.Material   = Enum.Material.SmoothPlastic
+
+    local mesh = Instance.new("SpecialMesh", egg)
+    mesh.MeshType = Enum.MeshType.Sphere
+    mesh.Scale    = Vector3.new(1, 1.3, 1)
+
+    local padTop = pad.Position.Y + pad.Size.Y / 2
+    egg.CFrame = CFrame.new(pad.Position.X, padTop + 0.75, pad.Position.Z + 4)
+    egg.Parent = farm.model
+
+    entry.eggModel = egg
+end
+
+-- Elimina el Part de huevo físico del nido
+function FarmSystem.RemoveEggFromNest(player, nestIndex)
+    local farm = farmModels[player.UserId]
+    if not farm then return end
+    local entry = farm.nests[nestIndex]
+    if not entry then return end
+    if entry.eggModel then
+        entry.eggModel:Destroy()
+        entry.eggModel = nil
+    end
+end
+
 -- Notificar al sistema cuando un dragón es colocado o retirado de un nido
 function FarmSystem.OnDragonPlaced(player, nestIndex)
     task.defer(function()
@@ -599,6 +992,14 @@ Players.PlayerRemoving:Connect(FarmSystem.ReleasePlot)
 -- Escuchar cambios de nido desde NestSystem para actualizar el visual
 NestSystem.OnNestChanged = function(player, nestIndex)
     FarmSystem.OnDragonPlaced(player, nestIndex)
+end
+
+-- Mostrar/quitar huevo físico cuando EggService lo notifica
+EggService.OnEggReady = function(player, nestIndex)
+    FarmSystem.ShowEggOnNest(player, nestIndex)
+end
+EggService.OnEggCollected = function(player, nestIndex)
+    FarmSystem.RemoveEggFromNest(player, nestIndex)
 end
 
 startUpdateLoop()

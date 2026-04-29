@@ -28,6 +28,7 @@ local Constants     = require(ReplicatedStorage:WaitForChild("Constants"))
 local DragonData    = require(ReplicatedStorage:WaitForChild("DragonData"))
 local DataStore     = require(ServerScriptService:WaitForChild("DataStore"))
 local WeatherSystem = require(ServerScriptService:WaitForChild("WeatherSystem"))
+local EggService    = require(ServerScriptService:WaitForChild("EggService"))
 
 local TIENDA_RAPIDA   = Constants.TIENDA_RAPIDA
 local TIENDA_ESPECIAL = Constants.TIENDA_ESPECIAL
@@ -379,7 +380,7 @@ local function procesarCompraRapida(player, slotIndex)
     end
 
     -- Verificar espacio en inventario antes de cobrar
-    if slot.tipo == "dragon" and DataStore.IsInventoryFull(player) then
+    if (slot.tipo == "dragon" or slot.tipo == "huevo") and DataStore.IsInventoryFull(player) then
         return false, "Inventario lleno — vendé o colocá dragones en nidos para hacer espacio."
     end
 
@@ -405,12 +406,22 @@ local function procesarCompraRapida(player, slotIndex)
         PurchaseCompletedEvent:FireClient(player, { tipo = "dragon", dragonId = slot.dragonId, rareza = slot.rareza, nombre = slot.nombre })
         return true, { mensaje = ("¡Compraste a %s!"):format(slot.nombre), tipo = "dragon", dragonId = slot.dragonId }
     elseif slot.tipo == "huevo" then
-        local datosLive = DataStore.GetPlayerData(player)
-        if datosLive then
-            datosLive.boosts                       = datosLive.boosts or {}
-            datosLive.boosts["huevo_pendiente"]    = (datosLive.boosts["huevo_pendiente"] or 0) + 1
+        -- Elegir un dragón común al azar como padre del huevo misterioso
+        local padres = {}
+        for _, d in ipairs(DragonData.Dragons) do
+            if d.rarity == "comun" and not d.soloCria and not d.soloEvento then
+                table.insert(padres, d.id)
+            end
         end
-        return true, { mensaje = "¡Compraste un Huevo Misterioso!", tipo = "huevo" }
+        local padreid = padres[math.random(#padres)] or "fire_common"
+        local ok, resultado = EggService.AddEggToInventory(player, padreid, nil)
+        if not ok then
+            -- Reembolsar el oro si el inventario se llenó en el margen
+            DataStore.AddGold(player, slot.precio)
+            return false, resultado
+        end
+        PurchaseCompletedEvent:FireClient(player, { tipo = "huevo", eggIndex = resultado, nombre = "Huevo Misterioso" })
+        return true, { mensaje = "¡Compraste un Huevo Misterioso!", tipo = "huevo", eggIndex = resultado }
     end
 
     return false, "Tipo de item desconocido."

@@ -62,6 +62,9 @@ local eggInventory = {}
 -- Siguiente índice único por jugador para eggInventory (evita colisiones)
 local eggNextIndex = {}
 
+-- eggNotified[userId][nestIndex] = true  →  ya se disparó OnEggReady una vez
+local eggNotified = {}
+
 --------------------------------------------------------------------------------
 -- RemoteEvents y RemoteFunctions
 --------------------------------------------------------------------------------
@@ -250,6 +253,10 @@ end
 --------------------------------------------------------------------------------
 
 local EggService = {}
+
+-- Hooks para sistemas externos (e.g. FarmSystem)
+EggService.OnEggReady     = nil  -- function(player, nestIndex)
+EggService.OnEggCollected = nil  -- function(player, nestIndex)
 
 --------------------------------------------------------------------------------
 -- EggService.GetEggCount(player [, dragonId])
@@ -440,6 +447,10 @@ function EggService.CollectEgg(player, nestIndex)
 
     -- Liberar el slot en el nido
     eggs[uid][nestIndex] = nil
+    if eggNotified[uid] then eggNotified[uid][nestIndex] = nil end
+    if EggService.OnEggCollected then
+        EggService.OnEggCollected(player, nestIndex)
+    end
 
     -- Iniciar automáticamente el siguiente ciclo de producción de huevo
     EggService.StartEggTimer(player, nestIndex, dragonId)
@@ -561,6 +572,7 @@ end
 -- Devuelve: (éxito, { oroGanado } o mensaje de error)
 --------------------------------------------------------------------------------
 function EggService.SellEgg(player, eggIndex)
+    eggIndex = tonumber(eggIndex) or eggIndex
     local uid      = player.UserId
     local inventario = eggInventory[uid]
 
@@ -730,6 +742,14 @@ task.spawn(function()
             if eggs[uid] then
                 for nestIndex, nido in pairs(eggs[uid]) do
                     if ahora >= nido.readyAt then
+                        -- Primera vez que está listo: disparar hook físico
+                        if not (eggNotified[uid] and eggNotified[uid][nestIndex]) then
+                            eggNotified[uid] = eggNotified[uid] or {}
+                            eggNotified[uid][nestIndex] = true
+                            if EggService.OnEggReady then
+                                EggService.OnEggReady(player, nestIndex)
+                            end
+                        end
                         -- Notificar al cliente que puede recoger el huevo
                         EggReadyEvent:FireClient(player, {
                             nestIndex   = nestIndex,
@@ -776,6 +796,32 @@ function EggService.CancelEggTimer(player, nestIndex)
 end
 
 --------------------------------------------------------------------------------
+-- EggService.AddEggToInventory(player, dragonId, guaranteed)
+--
+-- Agrega directamente un huevo al inventario del jugador sin pasar por el
+-- timer de nido. Usado por ShopService al comprar un Huevo Misterioso.
+-- Valida que el inventario no esté lleno antes de agregar.
+-- Dispara EggReady al cliente (collected=true) para refrescar la UI.
+-- Devuelve: (true, eggIndex) o (false, mensajeError)
+--------------------------------------------------------------------------------
+function EggService.AddEggToInventory(player, dragonId, guaranteed)
+    if DataStore.IsInventoryFull(player) then
+        return false, "Inventario lleno — vendé o usá dragones para hacer espacio."
+    end
+    local uid = player.UserId
+    asegurarEstado(uid)
+    local eggIdx = agregarAlInventario(uid, dragonId, guaranteed)
+    EggReadyEvent:FireClient(player, {
+        nestIndex  = nil,
+        collected  = true,
+        eggIndex   = eggIdx,
+        dragonId   = dragonId,
+        guaranteed = guaranteed,
+    })
+    return true, eggIdx
+end
+
+--------------------------------------------------------------------------------
 -- Handlers de RemoteFunctions
 -- El servidor valida SIEMPRE; el cliente solo informa qué quiere hacer.
 --------------------------------------------------------------------------------
@@ -785,10 +831,9 @@ CollectEggFunc.OnServerInvoke = function(player, nestIndex)
     if type(nestIndex) ~= "number" then
         return { ok = false, error = "Parámetros inválidos." }
     end
-    local result = EggService.CollectEgg(player, nestIndex)
-    -- CollectEgg ya retorna un solo table con ok=true/false
+    local result, errMsg = EggService.CollectEgg(player, nestIndex)
     if type(result) == "table" then return result end
-    return { ok = false, error = tostring(result) }
+    return { ok = false, error = tostring(errMsg or result) }
 end
 
 -- Iniciar incubación de un huevo del inventario
@@ -805,13 +850,14 @@ StartIncubationFunc.OnServerInvoke = function(player, eggIndex)
 end
 
 -- Vender un huevo (desde el nido o desde el inventario)
-SellEggFunc.OnServerInvoke = function(player, index)
+SellEggFunc.OnServerInvoke = function(player, index, fromInventory)
+    index = tonumber(index) or index  -- normalizar: "3" → 3
     if type(index) ~= "number" then
         return { ok = false, error = "Parámetros inválidos." }
     end
-    -- Intentar vender desde nido primero (index = nestIndex)
+    -- Intentar vender desde nido (solo si NO viene del inventario)
     local uid = player.UserId
-    if eggs[uid] and eggs[uid][index] then
+    if not fromInventory and eggs[uid] and eggs[uid][index] then
         local nido = eggs[uid][index]
         local parentDragon = DragonData.GetDragonById(nido.dragonId)
         if not parentDragon then
@@ -820,6 +866,10 @@ SellEggFunc.OnServerInvoke = function(player, index)
         end
         local goldGained = math.floor(parentDragon.goldPerSecond * SELL_BASE_FACTOR * SELL_MULTIPLIER)
         eggs[uid][index] = nil
+        if eggNotified[uid] then eggNotified[uid][index] = nil end
+        if EggService.OnEggCollected then
+            EggService.OnEggCollected(player, index)
+        end
         DataStore.AddGold(player, goldGained)
         EggService.StartEggTimer(player, index, nido.dragonId)
         return { ok = true, goldGained = goldGained }
@@ -880,6 +930,7 @@ Players.PlayerRemoving:Connect(function(player)
     eggs[uid]         = nil
     eggInventory[uid] = nil
     eggNextIndex[uid] = nil
+    eggNotified[uid]  = nil
 end)
 
 for _, player in ipairs(Players:GetPlayers()) do
